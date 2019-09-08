@@ -1,0 +1,103 @@
+#!/usr/bin/python
+# cpuspeedrpi1.py -- CPU Speed for Raspberry Pi, Feb 23, 2019
+# Modified from the following:
+# cpuspeed10.py -- CPU Speed in Python, CRB, Apr 19, 2010
+
+import sys, string
+import time
+from Tkinter import *
+
+# get model name
+def getmodel(file):
+    global modelline
+    while 1:
+        pos = file.tell()               # mark beginning of line
+        line = file.readline()
+        if not line:
+            return 0
+        if line[0:10] == "model name" :
+            model = line[13:]
+            length = len(model) - 1
+            modelline = model[:length]
+            break
+    return pos
+
+# get position of next cpu speed line
+def getspeed(file):
+    while 1:
+        pos = file.tell()               # mark beginning of line
+        line = file.readline()
+        if not line:
+            return 0
+        if line[0:8] == "BogoMIPS":
+            speedpos = pos
+            break
+    return speedpos
+
+# get the new speed and display if changed
+def newspeed(numcpus):
+    global speedpos
+    global speed
+    global clock
+    global line
+    global speednow
+    if speedpos:
+        file = open('/proc/cpuinfo','r')
+        for i in range(numcpus):
+            file.seek(speedpos[i])
+            line[i] = file.readline()
+        file.close()
+
+        newtext = modelline
+        for i in range(numcpus):
+            spd = line[i][11:]
+            length = len(spd) - 1
+            speednow[i] = spd[:length]
+            clock[i] = "CPU" + repr(i) + " Clock: " + speednow[i] + " BogoMIPS"
+            newtext = newtext + '\n' + clock[i]
+        widget.grid(row=0, column=0)
+        widget.config(text=newtext, font=('courier', 12, 'bold'))
+        canvas.update()
+        return
+    else: return
+
+# main program
+root = Tk()
+canvas = Canvas()
+
+root.title("RPi CPU Speed")            # set window title
+widget = Label(root)
+
+numcpus = 0                   	       # initialize stuff
+speedpos = [0,0,0,0,0]
+modelline = line1 = speed = ""
+line  = ["", "", "", ""]
+clock = ["", "", "", ""]
+speednow = ["", "", "", ""]
+
+file = open('/proc/cpuinfo','r')
+
+modelpos = getmodel(file)
+
+for i in range(5):                     # get positions of speed lines
+    speedpos[i] = getspeed(file)
+    if speedpos[i] == 0:
+        numcpus = i
+        break
+
+file.close()
+
+# set parameters
+timeinc = 0.5                          # check for change every timeinc seconds
+timelimit = 10.0                       # update display every timelimit seconds
+timer = 0
+
+while 1:
+    newspeed(numcpus)
+    if timer >= timelimit:
+        canvas.update()
+        timer = 0
+    else: timer += timeinc
+    time.sleep(1.0)
+    
+root.mainloop()
